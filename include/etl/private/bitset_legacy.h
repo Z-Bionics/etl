@@ -184,6 +184,15 @@ namespace etl
       }
 
       //*******************************
+      /// Copy constructor.
+      //*******************************
+      bit_reference(const bit_reference& other)
+        : p_bitset(other.p_bitset)
+        , position(other.position)
+      {
+      }
+
+      //*******************************
       /// Assignment operator.
       //*******************************
       bit_reference& operator = (bool b)
@@ -271,9 +280,14 @@ namespace etl
     //*************************************************************************
     bool test(size_t position) const
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), false);
       size_t    index;
       element_type mask;
 
+      if (position >= Active_Bits)
+      {
+        return false;
+      }
       if (Number_Of_Elements == 0)
       {
         return false;
@@ -308,31 +322,35 @@ namespace etl
     //*************************************************************************
     ibitset& set(size_t position, bool value = true)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
       size_t    index;
       element_type bit;
 
-      if (Number_Of_Elements == 0) 
+      if (position < Active_Bits)
       {
-        return *this;
-      }
-      else if (Number_Of_Elements == 1)
-      {
-        index = 0;
-        bit = element_type(1) << position;
-      }
-      else
-      {
-        index = position >> etl::log2<Bits_Per_Element>::value;
-        bit = element_type(1) << (position & (Bits_Per_Element - 1));
-      }
+        if (Number_Of_Elements == 0) 
+        {
+          return *this;
+        }
+        else if (Number_Of_Elements == 1)
+        {
+          index = 0;
+          bit = element_type(1) << position;
+        }
+        else
+        {
+          index = position >> etl::log2<Bits_Per_Element>::value;
+          bit = element_type(1) << (position & (Bits_Per_Element - 1));
+        }
 
-      if (value)
-      {
-        pdata[index] |= bit;
-      }
-      else
-      {
-        pdata[index] &= ~bit;
+        if (value)
+        {
+          pdata[index] |= bit;
+        }
+        else
+        {
+          pdata[index] &= ~bit;
+        }
       }
 
       return *this;
@@ -457,7 +475,7 @@ namespace etl
 
       const bool OK = (sizeof(T) * CHAR_BIT) >= (Number_Of_Elements * Bits_Per_Element);
 
-      ETL_ASSERT_AND_RETURN_VALUE(OK, ETL_ERROR(etl::bitset_type_too_small), T(0));
+      ETL_ASSERT_OR_RETURN_VALUE(OK, ETL_ERROR(etl::bitset_type_too_small), T(0));
 
       if (OK)
       {
@@ -504,25 +522,29 @@ namespace etl
     //*************************************************************************
     ibitset& reset(size_t position)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
       size_t       index;
       element_type bit;
 
-      if (Number_Of_Elements == 0)
+      if (position < Active_Bits)
       {
-        return *this;
-      }
-      else if (Number_Of_Elements == 1)
-      {
-        index = 0;
-        bit = element_type(1) << position;
-      }
-      else
-      {
-        index = position >> etl::log2<Bits_Per_Element>::value;
-        bit = element_type(1) << (position & (Bits_Per_Element - 1));
-      }
+        if (Number_Of_Elements == 0)
+        {
+          return *this;
+        }
+        else if (Number_Of_Elements == 1)
+        {
+          index = 0;
+          bit = element_type(1) << position;
+        }
+        else
+        {
+          index = position >> etl::log2<Bits_Per_Element>::value;
+          bit = element_type(1) << (position & (Bits_Per_Element - 1));
+        }
 
-      pdata[index] &= ~bit;
+        pdata[index] &= ~bit;
+      }
 
       return *this;
     }
@@ -547,28 +569,26 @@ namespace etl
     //*************************************************************************
     ibitset& flip(size_t position)
     {
-      if (position < Active_Bits)
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      size_t    index;
+      element_type bit;
+      
+      if (Number_Of_Elements == 0)
       {
-        size_t    index;
-        element_type bit;
-        
-        if (Number_Of_Elements == 0)
-        {
-          return *this;
-        }
-        else if (Number_Of_Elements == 1)
-        {
-          index = 0;
-          bit = element_type(1) << position;
-        }
-        else
-        {
-          index = position >> log2<Bits_Per_Element>::value;
-          bit = element_type(1) << (position & (Bits_Per_Element - 1));
-        }
-
-        pdata[index] ^= bit;
+        return *this;
       }
+      else if (Number_Of_Elements == 1)
+      {
+        index = 0;
+        bit = element_type(1) << position;
+      }
+      else
+      {
+        index = position >> log2<Bits_Per_Element>::value;
+        bit = element_type(1) << (position & (Bits_Per_Element - 1));
+      }
+
+      pdata[index] ^= bit;
 
       return *this;
     }
@@ -1064,6 +1084,12 @@ namespace etl
 #endif
   };
 
+  ETL_CONSTANT ibitset::element_type ibitset::ALL_SET;
+
+  ETL_CONSTANT ibitset::element_type ibitset::ALL_CLEAR;
+
+  ETL_CONSTANT size_t ibitset::Bits_Per_Element;
+
   //*************************************************************************
   /// The class emulates an array of bool elements, but optimized for space allocation.
   /// Will accommodate any number of bits.
@@ -1071,7 +1097,7 @@ namespace etl
   ///\tparam MaxN The number of bits.
   ///\ingroup bitset
   //*************************************************************************
-  template <const size_t MaxN>
+  template <size_t MaxN>
   class bitset : public etl::ibitset
   {
 
@@ -1170,7 +1196,7 @@ namespace etl
     //*************************************************************************
     bitset<MaxN>& set(const char* text)
     {
-      ETL_ASSERT_AND_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
+      ETL_ASSERT_OR_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
       etl::ibitset::set(text);
 
       return *this;
@@ -1181,7 +1207,7 @@ namespace etl
     //*************************************************************************
     bitset<MaxN>& set(const wchar_t* text)
     {
-      ETL_ASSERT_AND_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
+      ETL_ASSERT_OR_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
       etl::ibitset::set(text);
 
       return *this;
@@ -1192,7 +1218,7 @@ namespace etl
     //*************************************************************************
     bitset<MaxN>& set(const char16_t* text)
     {
-      ETL_ASSERT_AND_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
+      ETL_ASSERT_OR_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
       etl::ibitset::set(text);
 
       return *this;
@@ -1203,7 +1229,7 @@ namespace etl
     //*************************************************************************
     bitset<MaxN>& set(const char32_t* text)
     {
-      ETL_ASSERT_AND_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
+      ETL_ASSERT_OR_RETURN_VALUE(text != 0, ETL_ERROR(bitset_nullptr), *this);
       etl::ibitset::set(text);
 
       return *this;
@@ -1312,7 +1338,7 @@ namespace etl
 
       result.resize(MaxN, '\0');
 
-      ETL_ASSERT_AND_RETURN_VALUE((result.size() == MaxN), ETL_ERROR(etl::bitset_overflow), result);
+      ETL_ASSERT_OR_RETURN_VALUE((result.size() == MaxN), ETL_ERROR(etl::bitset_overflow), result);
 
       for (size_t i = MaxN; i > 0; --i) 
       {
@@ -1429,11 +1455,17 @@ namespace etl
     element_type data[Array_Size > 0U ? Array_Size : 1U];
   };
 
+  template <size_t MaxN>
+  ETL_CONSTANT size_t bitset<MaxN>::ALLOCATED_BITS;
+  
+  template <size_t MaxN>
+  ETL_CONSTANT size_t bitset<MaxN>::Allocated_Bits;
+
   //***************************************************************************
   /// operator &
   ///\ingroup bitset
   //***************************************************************************
-  template <const size_t MaxN>
+  template <size_t MaxN>
   bitset<MaxN> operator & (const bitset<MaxN>& lhs, const bitset<MaxN>& rhs)
   {
     bitset<MaxN> temp(lhs);
@@ -1445,7 +1477,7 @@ namespace etl
   /// operator |
   ///\ingroup bitset
   //***************************************************************************
-  template<const size_t MaxN>
+  template<size_t MaxN>
   bitset<MaxN> operator | (const bitset<MaxN>& lhs, const bitset<MaxN>& rhs)
   {
     bitset<MaxN> temp(lhs);
@@ -1457,7 +1489,7 @@ namespace etl
   /// operator ^
   ///\ingroup bitset
   //***************************************************************************
-  template<const size_t MaxN>
+  template<size_t MaxN>
   bitset<MaxN> operator ^ (const bitset<MaxN>& lhs, const bitset<MaxN>& rhs)
   {
     bitset<MaxN> temp(lhs);
@@ -1469,7 +1501,7 @@ namespace etl
   /// operator !=
   ///\ingroup bitset
   //***************************************************************************
-  template<const size_t MaxN>
+  template<size_t MaxN>
   bool operator != (const bitset<MaxN>& lhs, const bitset<MaxN>& rhs)
   {
     return !(lhs == rhs);
@@ -1479,7 +1511,7 @@ namespace etl
 //*************************************************************************
 /// swap
 //*************************************************************************
-template <const size_t MaxN>
+template <size_t MaxN>
 void swap(etl::bitset<MaxN>& lhs, etl::bitset<MaxN>& rhs)
 {
   lhs.swap(rhs);

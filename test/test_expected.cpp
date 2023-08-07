@@ -32,7 +32,6 @@ SOFTWARE.
 #include "etl/type_traits.h"
 
 #include <string>
-#include <variant>
 
 namespace
 {
@@ -111,6 +110,11 @@ namespace
     {
     }
 
+    operator std::string() const
+    {
+      return e;
+    }
+
     ErrorM(ErrorM&&) = default;
     ErrorM& operator =(ErrorM&&) = default;
 
@@ -132,7 +136,7 @@ namespace
 
 namespace
 {
-  SUITE(test_result)
+  SUITE(test_expected)
   {
     //*************************************************************************
     TEST(test_default_constructor)
@@ -324,6 +328,23 @@ namespace
     }
 
     //*************************************************************************
+    TEST(test_copy_assign_from_error)
+    {
+      Value    input = { "value 1" };
+      Expected expected(input);
+
+      Error      error = { "error 1" };
+      Unexpected unexpected(error);
+
+      expected = unexpected;
+
+      Error output = expected.error();
+
+      CHECK_FALSE(expected.has_value());
+      CHECK_EQUAL(std::string(error), std::string(expected.error()));
+    }
+
+    //*************************************************************************
     TEST(test_move_construct)
     {
       ValueM    input1 = { "value 1" };
@@ -359,6 +380,23 @@ namespace
 
       CHECK_EQUAL("", output1.v);
       CHECK_EQUAL("value 1", output2.v);
+    }
+
+    //*************************************************************************
+    TEST(test_move_assign_from_error)
+    {
+      ValueM    input = { "value 1" };
+      ExpectedM expected(etl::move(input));
+
+      ErrorM      error = { "error 1" };
+      UnexpectedM unexpected(etl::move(error));
+
+      expected = etl::move(unexpected);
+
+      ErrorM output = etl::move(expected.error());
+
+      CHECK_FALSE(expected.has_value());
+      CHECK_EQUAL(std::string(error), std::string(expected.error()));
     }
 
     //*************************************************************************
@@ -443,6 +481,33 @@ namespace
 
       CHECK_EQUAL("",        output1.e);
       CHECK_EQUAL("error 1", output2.e);
+    }
+
+    //*************************************************************************
+    struct value_or_helper
+    {
+      Expected get_value() const
+      {
+        Value value = { "value5" };
+        return Expected(value);
+      }
+
+      Expected get_error() const
+      {
+        Error error = { "error1" };
+        return Expected(Unexpected(error));
+      }
+    };
+
+    TEST(test_chained_value_or_github_bug_720)
+    {
+      value_or_helper helper{};
+
+      Value value1 = helper.get_value().value_or(Value("value1"));
+      CHECK_EQUAL("value5", value1.v);
+
+      Value value2 = helper.get_error().value_or(Value("value1"));
+      CHECK_EQUAL("value1", value2.v);
     }
   };
 }

@@ -31,8 +31,6 @@ SOFTWARE.
 #include <string>
 #include <ostream>
 
-#include <optional>
-
 #include "etl/optional.h"
 #include "etl/vector.h"
 #include "data.h"
@@ -102,7 +100,7 @@ namespace
     {
       Data data("Hello");
 
-      etl::optional opt{ data };
+      etl::optional<Data> opt{ data };
 
       CHECK(opt.has_value());
       CHECK(bool(opt));
@@ -164,6 +162,33 @@ namespace
       data = Data("Value");
       result = data.value_or(Data("Default"));
       CHECK_EQUAL(Data("Value"), result);
+    }
+
+    //*************************************************************************
+    struct github_bug_720_bug_helper
+    {
+      int value{ 5 };
+
+      etl::optional<int> get_valid() const
+      {
+        return value;
+      }
+
+      etl::optional<int> get_invalid() const
+      {
+        return etl::optional<int>();
+      }
+    };
+
+    TEST(test_chained_value_or_github_bug_720 )
+    {
+      github_bug_720_bug_helper helper {};
+
+      int value1 = helper.get_valid().value_or(1);
+      CHECK_EQUAL(5, value1);
+
+      int value2 = helper.get_invalid().value_or(1);
+      CHECK_EQUAL(1, value2);
     }
 
     //*************************************************************************
@@ -494,6 +519,72 @@ namespace
 
       CHECK_TRUE(result.has_value());
       CHECK_EQUAL(2, result.value());
+    }
+
+    //*************************************************************************
+    struct MyPODObject
+    {
+      MyPODObject() = delete;
+      int value;
+    };
+
+    TEST(test_optional_pod_emplace_bug_712)
+    {
+      etl::optional<MyPODObject> optionalObject; // The Test: Does this compile for an object with a deleted default constructor?
+
+      // Make sure it isn't optimised away.
+      CHECK_FALSE(optionalObject.has_value());
+    }
+
+    //*************************************************************************
+    TEST(test_optional_pod_assign_bug_714)
+    {
+      etl::optional<int> opt = 42;
+      opt = etl::nullopt;
+
+      CHECK_EQUAL(false, opt.has_value());
+    }
+
+    //*************************************************************************   
+    TEST(test_dereference_operator_bug_730)
+    {
+      etl::optional<int> opt = 42;
+
+      CHECK_EQUAL(42, *opt);
+    }
+
+    //*************************************************************************
+    TEST(test_const_dereference_operator_bug_730)
+    {
+      const etl::optional<int> opt = 42;
+
+      CHECK_EQUAL(42, *opt);
+    }
+
+    //*************************************************************************   
+    TEST(test_arrow_operator_bug_730)
+    {
+      struct Object
+      {
+        int value;
+      };
+
+      etl::optional<Object> opt = Object{ 42 };
+
+      CHECK_EQUAL(42, opt->value);
+    }
+
+    //*************************************************************************   
+    TEST(test_const_arrow_operator_bug_730)
+    {
+      struct Object
+      {
+        int value;
+      };
+
+      const etl::optional<Object> opt = Object{ 42 };
+
+      CHECK_EQUAL(42, opt->value);
     }
   };
 }

@@ -1,4 +1,89 @@
 ===============================================================================
+20.37.2
+#733 Fix etl::expected assignment from etl unexpected.
+#734 Add missing new line at end of files.
+#735 fix(minmax): fix bug in minmax include mismatch detection.
+
+===============================================================================
+20.37.1
+#723 Added missing final CR/LF to result.h.
+Fixed etl::optional arrow and dereference operators.
+Enhanced min/max push/pop headers. Detects mismatched header includes.
+
+===============================================================================
+20.37.0
+#708 Fix missing class key with friend.
+#709 intrusive_list::iterator operator -> should not dereference pointer before return.
+#710 Calling accept on etl::variant visits a copy instead of the original object.
+#711 Added etl::is_forward_link, etl::is_bidirectional_link and etl::is_tree_link to intrusive links.
+     Added Constructors, access and status member functions to intrusive links.
+#712 Unable to use etl::optional with non-default-constructible POD objects.
+#716 etl::variant (variant_varadic) default constructed state
+#720 etl::optional rvalue value_or() broken
+#722 Bitset accesses memory out of bounds
+#725 variant_pool create method should use std::forward
+Modified etl::visitor to allow direct specification of the argument type.
+Added etl::is_visitor trait.
+Removed default link type for etl::intrusive_list and etl::intrusive_forward_list
+
+===============================================================================
+20.36.2
+#707 parameter_pack: Fix C++17 pedantic build
+
+===============================================================================
+20.36.1
+#700 Compilation error for [] map operator. Fixed map const placement new issue.
+Re-enabled memcast tests.
+
+===============================================================================
+20.36.0
+#663 Make unit tests compile for C++20
+#675 Compilation error in optional.h
+#684 Added sanitization fix for MinGW
+#687 Build failure. constexpr keyword before template keyword 
+#689 Add as_bytes and as_writable_bytes
+#690 Add rvalue accessors to expected and optional and update constructors
+#692 operator [] for flat_map always calls default constructor for mapped_type
+#695 Visiting a const variant (variadic)
+#698 Behaviour of bidirectional_link nodes. Links are now cleared when unlinked
+#699 Optional(POD) operator bool explicit
+Optimised map/flat_map/unordered_map [] operator and insert()
+Removed [] operator for reference_flat_map
+Unit tests compile for C++11
+Fixed C++11 constexpr compatibility
+Removed redundant 'const' in template parameters
+Updated CI scripts to enable C++ standard and optimisation selection
+Updated static constant definitions
+Fixed incorrect return types for reverse iterator begin() & end()
+Updated C++ standard conditional compilation for reverse iterator functions
+Fixed latest Address Sanitizer issues
+Message packet unused parameter fix
+Added ETL_OR_STD17 macro as the namespace for size()
+Added Tasking compiler
+Fix type traits generator
+Fix test array sizes
+Changed some ETL_ASSERT macros to ETL_ASSERT_OR_RETURN
+Updated CMake files to allow C++ standard selection
+Replaced ETL_ASSERT_AND_RETURN with ETL_ASSERT_OR_RETURN
+Changed native char8_t check
+Renamed Github vs2022.yml to visual-studio.yml
+Updated Unittest++ checks
+Comments and noexcept updates to placement new
+etl::variant (variadic) refactor and updates for C++ standards compatibility
+etl::overload available in C++17 only
+map/flat_map speed optimisations
+Various C++03 compatibilty updates for maps
+Refactored Bash compilation scripts to allow selection of C++ standard and optimisation level
+Renamed Bash compilation scripts. Changed 'sanity checks' to 'syntax checks
+Some internal constant case changes from all upper to capital case
+
+===============================================================================
+20.35.15
+#627 Make tests build with C++14
+#663 Make unit tests compile for C++20
+#675 Compilation error in optional.h line 405
+
+===============================================================================
 20.35.14
 Convert the Visual Studio project to VS2022
 

@@ -76,10 +76,14 @@ SOFTWARE.
 
 namespace etl
 {
+  template <typename T = void>
   struct bitset_constants
   {
     static ETL_CONSTANT size_t npos = etl::integral_limits<size_t>::max;
   };
+
+  template <typename T>
+  ETL_CONSTANT size_t bitset_constants<T>::npos;
 
   //***************************************************************************
   /// Exception base for bitset
@@ -109,12 +113,26 @@ namespace etl
     }
   };
 
+  //***************************************************************************
+  /// Bitset overflow exception.
+  ///\ingroup bitset
+  //***************************************************************************
+  class bitset_overflow : public bitset_exception
+  {
+  public:
+
+    bitset_overflow(string_type file_name_, numeric_type line_number_)
+      : bitset_exception(ETL_ERROR_TEXT("bitset:overflow", ETL_BITSET_FILE_ID"C"), file_name_, line_number_)
+    {
+    }
+  };
+
   //*************************************************************************
   /// The implementation class for multi-element etl::bitset
   ///\ingroup bitset
   //*************************************************************************
   template <typename TElement>
-  class bitset_impl : public bitset_constants
+  class bitset_impl : public bitset_constants<>
   {
   public:
 
@@ -417,30 +435,27 @@ namespace etl
     //*************************************************************************
     /// Flip the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 void flip(pointer pbuffer, size_t number_of_elements, size_t total_bits, size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 void flip(pointer pbuffer, size_t number_of_elements, size_t position) ETL_NOEXCEPT
     {
-      if (position < total_bits)
+      size_t       index = 0U;
+      element_type bit = element_type(0);
+      
+      if (number_of_elements == 0)
       {
-        size_t    index = 0U;
-        element_type bit = element_type(0);
-        
-        if (number_of_elements == 0)
-        {
-          return;
-        }
-        else if (number_of_elements == 1)
-        {
-          index = 0;
-          bit = element_type(1) << position;
-        }
-        else
-        {
-          index = position >> log2<Bits_Per_Element>::value;
-          bit = element_type(1) << (position & (Bits_Per_Element - 1));
-        }
-
-        pbuffer[index] ^= bit;
+        return;
       }
+      else if (number_of_elements == 1)
+      {
+        index = 0;
+        bit = element_type(1) << position;
+      }
+      else
+      {
+        index = position >> log2<Bits_Per_Element>::value;
+        bit = element_type(1) << (position & (Bits_Per_Element - 1));
+      }
+
+      pbuffer[index] ^= bit;
     }
 
     //*************************************************************************
@@ -565,7 +580,7 @@ namespace etl
       result.resize(active_bits, '\0');
 
       // Check that the string type can contain the digits.
-      ETL_ASSERT_AND_RETURN_VALUE(result.size() == active_bits, ETL_ERROR(etl::bitset_string_too_small), result);      
+      ETL_ASSERT_OR_RETURN_VALUE(result.size() == active_bits, ETL_ERROR(etl::bitset_string_too_small), result);      
 
       for (size_t i = active_bits; i > 0; --i)
       {
@@ -795,9 +810,18 @@ namespace etl
     }
   };
  
+  template <typename TElement>
+  ETL_CONSTANT size_t bitset_impl<TElement>::Bits_Per_Element;
+
+  template <typename TElement>
+  ETL_CONSTANT typename bitset_impl<TElement>::element_type bitset_impl<TElement>::All_Set_Element;
+
+  template <typename TElement>
+  ETL_CONSTANT typename bitset_impl<TElement>::element_type bitset_impl<TElement>::All_Clear_Element;
+
   //***************************************************************************
   template <size_t Active_Bits = 0U,
-            typename TElement = void,
+            typename TElement = char,
             bool IsSingleElement = etl::integral_limits<TElement>::bits == Active_Bits>
   class bitset;
 
@@ -806,7 +830,7 @@ namespace etl
   /// Just defines 'npos'.
   //***************************************************************************
   template <>
-  class bitset<0U, void, true> : public bitset_constants
+  class bitset<0U, char, true> : public bitset_constants<>
   {
   };
 
@@ -814,7 +838,7 @@ namespace etl
   /// Specialisation for zero bits.
   //***************************************************************************
   template <>
-  class bitset<0U, void, false> : public bitset_constants
+  class bitset<0U, char, false> : public bitset_constants<>
   {
   };
 
@@ -823,7 +847,7 @@ namespace etl
   /// same size as the number of active bits.
   //***************************************************************************
   template <size_t   Active_Bits, typename TElement>
-  class bitset<Active_Bits, TElement, true> : public bitset_constants
+  class bitset<Active_Bits, TElement, true> : public bitset_constants<>
   {
   public:
 
@@ -852,6 +876,15 @@ namespace etl
     public:
 
       friend class bitset;
+
+      //*******************************
+      /// Copy constructor.
+      //*******************************
+      ETL_CONSTEXPR14 bit_reference(const bit_reference& other) ETL_NOEXCEPT
+        : p_bitset(other.p_bitset)
+        , position(other.position)
+      {
+      }
 
       //*******************************
       /// Conversion operator.
@@ -1013,19 +1046,18 @@ namespace etl
     //*************************************************************************
     /// Set the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& set(size_t position, bool value = true) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& set(size_t position, bool value = true)
     {
-      if (position < Active_Bits)
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      const element_type mask = element_type(element_type(1) << position);
+      if (value == true)
       {
-        const element_type mask = element_type(element_type(1) << position);
-        if (value == true)
-        {
-          buffer |= mask;
-        }
-        else
-        {
-          buffer &= ~mask;
-        }
+        buffer |= mask;
+      }
+      else
+      {
+        buffer &= ~mask;
       }
 
       return *this;
@@ -1267,13 +1299,12 @@ namespace etl
     //*************************************************************************
     /// Reset the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& reset(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& reset(size_t position)
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        buffer &= ~mask;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      const element_type mask = element_type(element_type(1) << position);
+      buffer &= ~mask;
 
       return *this;
     }
@@ -1282,13 +1313,12 @@ namespace etl
     /// Tests a bit at a position.
     /// Positions greater than the number of configured bits will return <b>false</b>.
     //*************************************************************************
-    ETL_CONSTEXPR14 bool test(size_t position) const ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bool test(size_t position) const
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        return (buffer & mask) != 0U;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), false);
+
+      const element_type mask = element_type(element_type(1) << position);
+      return (buffer & mask) != 0U;
 
       return false;
     }
@@ -1380,13 +1410,12 @@ namespace etl
     //*************************************************************************
     /// Flip the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& flip(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, true>& flip(size_t position)
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        buffer ^= mask;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      const element_type mask = element_type(element_type(1) << position);
+      buffer ^= mask;
 
       return *this;
     }
@@ -1429,7 +1458,7 @@ namespace etl
       result.resize(Active_Bits, '\0');
 
       // Check that the string type can contain the digits.
-      ETL_ASSERT_AND_RETURN_VALUE(result.size() == Active_Bits, ETL_ERROR(etl::bitset_string_too_small), result);
+      ETL_ASSERT_OR_RETURN_VALUE(result.size() == Active_Bits, ETL_ERROR(etl::bitset_string_too_small), result);
 
       for (size_t i = Active_Bits; i > 0; --i)
       {
@@ -1663,11 +1692,32 @@ namespace etl
     element_type buffer;
   };
 
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, true>::Bits_Per_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, true>::Number_Of_Elements;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, true>::Allocated_Bits;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, true>::element_type bitset<Active_Bits, TElement, true>::All_Set_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, true>::element_type bitset<Active_Bits, TElement, true>::All_Clear_Element;
+  
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, true>::Top_Mask_Shift;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, true>::element_type bitset<Active_Bits, TElement, true>::Top_Mask;
+
   //*************************************************************************
   /// The specialisation that uses an array of the default element type.
   //*************************************************************************
   template <size_t Active_Bits, typename TElement>
-  class bitset<Active_Bits, TElement, false> : public bitset_constants
+  class bitset<Active_Bits, TElement, false> : public bitset_constants<>
   {
   private:
 
@@ -1707,6 +1757,15 @@ namespace etl
     public:
 
       friend class bitset;
+
+      //*******************************
+      /// Copy constructor.
+      //*******************************
+      ETL_CONSTEXPR14 bit_reference(const bit_reference& other) ETL_NOEXCEPT
+        : p_bitset(other.p_bitset)
+        , position(other.position)
+      {
+      }
 
       //*******************************
       /// Conversion operator.
@@ -1867,8 +1926,10 @@ namespace etl
     //*************************************************************************
     /// Set the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& set(size_t position, bool value = true) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& set(size_t position, bool value = true)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+
       ibitset.set(buffer, Number_Of_Elements, position, value);
       clear_unused_bits_in_msb();
       
@@ -1997,9 +2058,12 @@ namespace etl
     //*************************************************************************
     /// Reset the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& reset(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& reset(size_t position)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+
       ibitset.reset(buffer, Number_Of_Elements, position);
+
       return *this;
     }
 
@@ -2007,8 +2071,10 @@ namespace etl
     /// Tests a bit at a position.
     /// Positions greater than the number of configured bits will return <b>false</b>.
     //*************************************************************************
-    ETL_CONSTEXPR14 bool test(size_t position) const ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bool test(size_t position) const
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), false);
+
       return ibitset.test(buffer, Number_Of_Elements, position);
     }
  
@@ -2066,9 +2132,11 @@ namespace etl
     //*************************************************************************
     /// Flip the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& flip(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset<Active_Bits, TElement, false>& flip(size_t position)
     {
-      ibitset.flip(buffer, Number_Of_Elements, Active_Bits, position);
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+
+      ibitset.flip(buffer, Number_Of_Elements, position);
 
       return *this;
     }
@@ -2312,6 +2380,27 @@ namespace etl
     element_type buffer[Number_Of_Elements > 0U ? Number_Of_Elements : 1U];
   };
 
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, false>::Bits_Per_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, false>::Number_Of_Elements;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, false>::Allocated_Bits;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, false>::element_type bitset<Active_Bits, TElement, false>::All_Set_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, false>::element_type bitset<Active_Bits, TElement, false>::All_Clear_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset<Active_Bits, TElement, false>::Top_Mask_Shift;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset<Active_Bits, TElement, false>::element_type bitset<Active_Bits, TElement, false>::Top_Mask;
+
   //***************************************************************************
   /// operator &
   ///\ingroup bitset
@@ -2375,8 +2464,8 @@ namespace etl
 {
   //***************************************************************************
   template <size_t Active_Bits = 0U,
-    typename TElement = void,
-    bool IsSingleElement = etl::integral_limits<TElement>::bits == Active_Bits>
+            typename TElement = char,
+            bool IsSingleElement = etl::integral_limits<TElement>::bits == Active_Bits>
     class bitset_ext;
 
   //***************************************************************************
@@ -2384,7 +2473,7 @@ namespace etl
   /// Just defines 'npos'.
   //***************************************************************************
   template <>
-  class bitset_ext<0U, void, true> : public bitset_constants
+  class bitset_ext<0U, char, true> : public bitset_constants<>
   {
   };
 
@@ -2392,7 +2481,7 @@ namespace etl
   /// Specialisation for zero bits.
   //***************************************************************************
   template <>
-  class bitset_ext<0U, void, false> : public bitset_constants
+  class bitset_ext<0U, char, false> : public bitset_constants<>
   {
   };
 
@@ -2401,7 +2490,7 @@ namespace etl
   /// same size as the number of active bits.
   //***************************************************************************
   template <size_t   Active_Bits, typename TElement>
-  class bitset_ext<Active_Bits, TElement, true> : public bitset_constants
+  class bitset_ext<Active_Bits, TElement, true> : public bitset_constants<>
   {
   public:
 
@@ -2432,6 +2521,15 @@ namespace etl
     public:
 
       friend class bitset_ext;
+
+      //*******************************
+      /// Copy constructor.
+      //*******************************
+      ETL_CONSTEXPR14 bit_reference(const bit_reference& other) ETL_NOEXCEPT
+        : p_bitset(other.p_bitset)
+        , position(other.position)
+      {
+      }
 
       //*******************************
       /// Conversion operator.
@@ -2662,21 +2760,20 @@ namespace etl
     //*************************************************************************
     /// Set the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& set(size_t position, bool value = true) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& set(size_t position, bool value = true)
     {
-      if (position < Active_Bits)
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      const element_type mask = element_type(element_type(1) << position);
+      if (value == true)
       {
-        const element_type mask = element_type(element_type(1) << position);
-        if (value == true)
-        {
-          *pbuffer |= mask;
-        }
-        else
-        {
-          *pbuffer &= ~mask;
-        }
+        *pbuffer |= mask;
       }
-
+      else
+      {
+        *pbuffer &= ~mask;
+      }
+      
       return *this;
     }
 
@@ -2916,13 +3013,12 @@ namespace etl
     //*************************************************************************
     /// Reset the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& reset(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& reset(size_t position)
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        *pbuffer &= ~mask;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      const element_type mask = element_type(element_type(1) << position);
+      *pbuffer &= ~mask;
 
       return *this;
     }
@@ -2931,13 +3027,12 @@ namespace etl
     /// Tests a bit at a position.
     /// Positions greater than the number of configured bits will return <b>false</b>.
     //*************************************************************************
-    ETL_CONSTEXPR14 bool test(size_t position) const ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bool test(size_t position) const
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        return (*pbuffer & mask) != 0U;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), false);
+
+      const element_type mask = element_type(element_type(1) << position);
+      return (*pbuffer & mask) != 0U;
 
       return false;
     }
@@ -3029,13 +3124,12 @@ namespace etl
     //*************************************************************************
     /// Flip the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& flip(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, true>& flip(size_t position)
     {
-      if (position < Active_Bits)
-      {
-        const element_type mask = element_type(element_type(1) << position);
-        *pbuffer ^= mask;
-      }
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+
+      const element_type mask = element_type(element_type(1) << position);
+      *pbuffer ^= mask;
 
       return *this;
     }
@@ -3078,7 +3172,7 @@ namespace etl
       result.resize(Active_Bits, '\0');
 
       // Check that the string type can contain the digits.
-      ETL_ASSERT_AND_RETURN_VALUE(result.size() == Active_Bits, ETL_ERROR(etl::bitset_string_too_small), result);
+      ETL_ASSERT_OR_RETURN_VALUE(result.size() == Active_Bits, ETL_ERROR(etl::bitset_string_too_small), result);
 
       for (size_t i = Active_Bits; i > 0; --i)
       {
@@ -3240,11 +3334,32 @@ namespace etl
     element_type* pbuffer;
   };
 
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, true>::Bits_Per_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, true>::Number_Of_Elements;
+  
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, true>::Allocated_Bits;
+  
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, true>::element_type bitset_ext<Active_Bits, TElement, true>::All_Set_Element;
+    
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, true>::element_type bitset_ext<Active_Bits, TElement, true>::All_Clear_Element;
+    
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, true>::Top_Mask_Shift;
+  
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, true>::element_type bitset_ext<Active_Bits, TElement, true>::Top_Mask;
+
   //*************************************************************************
   /// The specialisation that uses an array of the default element type.
   //*************************************************************************
   template <size_t Active_Bits, typename TElement>
-  class bitset_ext<Active_Bits, TElement, false> : public bitset_constants
+  class bitset_ext<Active_Bits, TElement, false> : public bitset_constants<>
   {
   private:
 
@@ -3286,6 +3401,15 @@ namespace etl
     public:
 
       friend class bitset_ext;
+
+      //*******************************
+      /// Copy constructor
+      //*******************************
+      ETL_CONSTEXPR14 bit_reference(const bit_reference& other) ETL_NOEXCEPT
+        : p_bitset(other.p_bitset)
+        , position(other.position)
+      {
+      }
 
       //*******************************
       /// Conversion operator.
@@ -3519,8 +3643,10 @@ namespace etl
     //*************************************************************************
     /// Set the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& set(size_t position, bool value = true) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& set(size_t position, bool value = true)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
       ibitset.set(pbuffer, Number_Of_Elements, position, value);
       clear_unused_bits_in_msb();
 
@@ -3649,9 +3775,12 @@ namespace etl
     //*************************************************************************
     /// Reset the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& reset(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& reset(size_t position)
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+
       ibitset.reset(pbuffer, Number_Of_Elements, position);
+
       return *this;
     }
 
@@ -3659,8 +3788,10 @@ namespace etl
     /// Tests a bit at a position.
     /// Positions greater than the number of configured bits will return <b>false</b>.
     //*************************************************************************
-    ETL_CONSTEXPR14 bool test(size_t position) const ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bool test(size_t position) const
     {
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), false);
+      
       return ibitset.test(pbuffer, Number_Of_Elements, position);
     }
 
@@ -3718,9 +3849,11 @@ namespace etl
     //*************************************************************************
     /// Flip the bit at the position.
     //*************************************************************************
-    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& flip(size_t position) ETL_NOEXCEPT
+    ETL_CONSTEXPR14 bitset_ext<Active_Bits, TElement, false>& flip(size_t position)
     {
-      ibitset.flip(pbuffer, Number_Of_Elements, Active_Bits, position);
+      ETL_ASSERT_OR_RETURN_VALUE(position < Active_Bits, ETL_ERROR(bitset_overflow), *this);
+      
+      ibitset.flip(pbuffer, Number_Of_Elements, position);
 
       return *this;
     }
@@ -3890,6 +4023,27 @@ namespace etl
     etl::bitset_impl<element_type> ibitset;
     element_type* pbuffer;
   };
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, false>::Bits_Per_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, false>::Number_Of_Elements;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, false>::Allocated_Bits;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, false>::element_type bitset_ext<Active_Bits, TElement, false>::All_Set_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, false>::element_type bitset_ext<Active_Bits, TElement, false>::All_Clear_Element;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT size_t bitset_ext<Active_Bits, TElement, false>::Top_Mask_Shift;
+
+  template <size_t Active_Bits, typename TElement>
+  ETL_CONSTANT typename bitset_ext<Active_Bits, TElement, false>::element_type bitset_ext<Active_Bits, TElement, false>::Top_Mask;
 
   //***************************************************************************
   /// operator !=

@@ -76,7 +76,7 @@ namespace etl
   //***************************************************************************
   /*[[[cog
   import cog
-  cog.outl("template <const size_t MAX_SIZE_,")
+  cog.outl("template <size_t MAX_SIZE_,")
   cog.outl("          typename T1,")
   for n in range(2, int(NTypes)):
       cog.outl("          typename T%s = void," % n)
@@ -245,7 +245,7 @@ namespace etl
       ]]]*/
       /*[[[end]]]*/
 
-      return base_t::template create<T>(args...);
+      return base_t::template create<T>(etl::forward<Args>(args)...);
     }
 #endif
 
@@ -457,7 +457,7 @@ namespace etl
       ]]]*/
       /*[[[end]]]*/
 
-      return base_t::template create<T>(args...);
+      return base_t::template create<T>(etl::forward<Args>(args)...);
     }
 #endif
 

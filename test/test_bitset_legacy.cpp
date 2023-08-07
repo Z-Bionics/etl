@@ -548,6 +548,13 @@ namespace
     }
 
     //*************************************************************************
+    TEST(test_position_set_invalid_position_raises_bitset_overflow_github_issue_722)
+    {
+      etl::bitset<12> data;
+      CHECK_THROW(data.set(13), etl::bitset_overflow);
+    }
+
+    //*************************************************************************
     TEST(test_reset)
     {
       std::bitset<60> compare(0xFFFFFFFFFFFFFFFULL);
@@ -614,6 +621,30 @@ namespace
       {
         CHECK_EQUAL(compare.test(i), data.test(i));
       }
+    }
+
+    //*************************************************************************
+    TEST(test_position_reset_invalid_position_raises_bitset_overflow_github_issue_722)
+    {
+      etl::bitset<12> data;
+
+      CHECK_THROW(data.reset(13), etl::bitset_overflow);
+    }
+
+    //*************************************************************************
+    TEST(test_position_flip_invalid_position_raises_bitset_overflow_github_issue_722)
+    {
+      etl::bitset<12> data;
+
+      CHECK_THROW(data.flip(13), etl::bitset_overflow);
+    }
+
+    //*************************************************************************
+    TEST(test_position_test_invalid_position_raises_bitset_overflow_github_issue_722)
+    {
+      etl::bitset<12> data;
+
+      CHECK_THROW(data.test(13), etl::bitset_overflow);
     }
 
     //*************************************************************************
@@ -1249,13 +1280,13 @@ namespace
     //*************************************************************************
     TEST(test_find_next_github_issue_617)
     {
-      etl::bitset<64> bs1(0xC000'0000'0000'0031ULL);
+      etl::bitset<64> bs1(0xC000000000000031ULL);
       size_t bs1fnt1 = bs1.find_next(true, 10);
       size_t bs1fnt2 = bs1.find_next(true, 59);
       CHECK_EQUAL(62U, bs1fnt1);
       CHECK_EQUAL(62U, bs1fnt2);
 
-      etl::bitset<64> bs2(0x3FFF'FFFF'FFFF'FFCEULL);
+      etl::bitset<64> bs2(0x3FFFFFFFFFFFFFCEULL);
       size_t bs2fnf1 = bs2.find_next(false, 10);
       size_t bs2fnf2 = bs2.find_next(false, 59);
       CHECK_EQUAL(62U, bs2fnf1);

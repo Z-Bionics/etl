@@ -1361,7 +1361,7 @@ namespace etl
     //*************************************************************************
     Data_Node& allocate_data_node(const_reference value)
     {
-      Data_Node& node = create_data_node();
+      Data_Node& node = allocate_data_node();
       ::new ((void*)&node.value) value_type(value);
       ETL_INCREMENT_DEBUG_COUNT
       return node;
@@ -1373,7 +1373,7 @@ namespace etl
     //*************************************************************************
     Data_Node& allocate_data_node(rvalue_reference value)
     {
-      Data_Node& node = create_data_node();
+      Data_Node& node = allocate_data_node();
       ::new ((void*)&node.value) value_type(etl::move(value));
       ETL_INCREMENT_DEBUG_COUNT
       return node;
@@ -1383,7 +1383,7 @@ namespace etl
     //*************************************************************************
     /// Create a Data_Node.
     //*************************************************************************
-    Data_Node& create_data_node()
+    Data_Node& allocate_data_node()
     {
       Data_Node* (etl::ipool::*func)() = &etl::ipool::allocate<Data_Node>;
       return *(p_node_pool->*func)();
@@ -2624,6 +2624,9 @@ namespace etl
     /// The pool of data nodes used for the set.
     etl::pool<typename etl::iset<TKey, TCompare>::Data_Node, MAX_SIZE> node_pool;
   };
+
+  template <typename TKey, const size_t MAX_SIZE_, typename TCompare>
+  ETL_CONSTANT size_t set<TKey, MAX_SIZE_, TCompare>::MAX_SIZE;
 
   //*************************************************************************
   /// Template deduction guides.
